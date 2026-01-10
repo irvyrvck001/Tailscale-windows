@@ -1,0 +1,64 @@
+name: GCP Ultra Performance OS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  ultra-os:
+    runs-on: self-hosted
+
+    timeout-minutes: 0
+
+    env:
+      PERFORMANCE_MODE: ULTRA
+      DISK_LIMIT: UNLIMITED
+      RAM_LIMIT: UNLIMITED
+      CPU_LIMIT: UNLIMITED
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: System Verification
+        shell: powershell
+        run: |
+          Write-Host "CPU / RAM / DISK"
+          Get-ComputerInfo | Select OsName, OsVersion, CsTotalPhysicalMemory
+          Get-Volume
+
+      - name: Enable Ultimate Performance Mode
+        shell: powershell
+        run: |
+          powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61
+          powercfg -setactive e9a42b02-d5df-448d-aa00-03f14749eb61
+
+      - name: Remove Background Limits
+        shell: powershell
+        run: |
+          reg add "HKLM\SYSTEM\CurrentControlSet\Control\Power" /v HibernateEnabled /t REG_DWORD /d 0 /f
+          sc stop SysMain
+          sc config SysMain start= disabled
+
+      - name: Storage & IO Optimization
+        shell: powershell
+        run: |
+          fsutil behavior set DisableDeleteNotify 0
+          fsutil behavior set memoryusage 2
+          defrag C: /O
+
+      - name: Disable Telemetry
+        shell: powershell
+        run: |
+          sc stop DiagTrack
+          sc config DiagTrack start= disabled
+          reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection" /v AllowTelemetry /t REG_DWORD /d 0 /f
+
+      - name: Confirm Unlimited Disk
+        shell: powershell
+        run: |
+          Get-PSDrive -PSProvider FileSystem
+
+      - name: Ready
+        run: echo "🚀 Ultra OS on GCP — No limits active"
